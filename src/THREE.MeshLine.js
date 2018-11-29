@@ -13,6 +13,7 @@ if( !THREE )
 function MeshLine() {
 
 	this.positions = [];
+	this.colors = [];
 
 	this.previous = [];
 	this.next = [];
@@ -40,13 +41,26 @@ MeshLine.prototype.setGeometry = function( g, c ) {
 			var c = j/g.vertices.length;
 			this.positions.push( v.x, v.y, v.z );
 			this.positions.push( v.x, v.y, v.z );
+			this.colors.push( 0, 0, 0, 0 );
+			this.colors.push( 0, 0, 0, 0 );
 			this.counters.push(c);
 			this.counters.push(c);
 		}
 	}
 
 	if( g instanceof THREE.BufferGeometry ) {
-		// read attribute positions ?
+		var verts = g.getAttribute('position').array;
+		var colors = g.getAttribute('color').array;
+
+		for( var j = 0; j*3 < verts.length; j += 1 ) {
+			var c = j*3/verts.length;
+			this.positions.push( verts[ j*3 ], verts[ j*3 + 1 ], verts[ j*3 + 2 ] );
+			this.positions.push( verts[ j*3 ], verts[ j*3 + 1 ], verts[ j*3 + 2 ] );
+			this.colors.push( colors[ j*4 ], colors[ j*4 + 1 ], colors[ j*4 + 2 ], colors[ j*4 + 3 ] );
+			this.colors.push( colors[ j*4 ], colors[ j*4 + 1 ], colors[ j*4 + 2 ], colors[ j*4 + 3 ] );
+			this.counters.push(c);
+			this.counters.push(c);
+		}
 	}
 
 	if( g instanceof Float32Array || g instanceof Array ) {
@@ -54,6 +68,8 @@ MeshLine.prototype.setGeometry = function( g, c ) {
 			var c = j/g.length;
 			this.positions.push( g[ j ], g[ j + 1 ], g[ j + 2 ] );
 			this.positions.push( g[ j ], g[ j + 1 ], g[ j + 2 ] );
+			this.colors.push( 0, 0, 0, 0 );
+			this.colors.push( 0, 0, 0, 0 );
 			this.counters.push(c);
 			this.counters.push(c);
 		}
@@ -145,6 +161,7 @@ MeshLine.prototype.process = function() {
 	if (!this.attributes) {
 		this.attributes = {
 			position: new THREE.BufferAttribute( new Float32Array( this.positions ), 3 ),
+			color: new THREE.BufferAttribute(new Float32Array( this.colors ), 4 ),
 			previous: new THREE.BufferAttribute( new Float32Array( this.previous ), 3 ),
 			next: new THREE.BufferAttribute( new Float32Array( this.next ), 3 ),
 			side: new THREE.BufferAttribute( new Float32Array( this.side ), 1 ),
@@ -156,6 +173,8 @@ MeshLine.prototype.process = function() {
 	} else {
 		this.attributes.position.copyArray(new Float32Array(this.positions));
 		this.attributes.position.needsUpdate = true;
+		this.attributes.color.copyArray(new Float32Array(this.colors));
+		this.attributes.color.needsUpdate = true;
 		this.attributes.previous.copyArray(new Float32Array(this.previous));
 		this.attributes.previous.needsUpdate = true;
 		this.attributes.next.copyArray(new Float32Array(this.next));
@@ -171,6 +190,7 @@ MeshLine.prototype.process = function() {
     }
 
 	this.geometry.addAttribute( 'position', this.attributes.position );
+	this.geometry.addAttribute( 'color', this.attributes.color );
 	this.geometry.addAttribute( 'previous', this.attributes.previous );
 	this.geometry.addAttribute( 'next', this.attributes.next );
 	this.geometry.addAttribute( 'side', this.attributes.side );
@@ -249,6 +269,7 @@ function MeshLineMaterial( parameters ) {
 'precision highp float;',
 '',
 'attribute vec3 position;',
+'attribute vec4 color;',
 'attribute vec3 previous;',
 'attribute vec3 next;',
 'attribute float side;',
@@ -260,8 +281,9 @@ function MeshLineMaterial( parameters ) {
 'uniform mat4 modelViewMatrix;',
 'uniform vec2 resolution;',
 'uniform float lineWidth;',
-'uniform vec3 color;',
-'uniform float opacity;',
+'uniform float useGlobalColor;',
+'uniform vec3 gcolor;',
+'uniform float gopacity;',
 'uniform float near;',
 'uniform float far;',
 'uniform float sizeAttenuation;',
@@ -284,7 +306,12 @@ function MeshLineMaterial( parameters ) {
 '    float aspect = resolution.x / resolution.y;',
 '	 float pixelWidthRatio = 1. / (resolution.x * projectionMatrix[0][0]);',
 '',
-'    vColor = vec4( color, opacity );',
+'    if(useGlobalColor == 1.0) {',
+'        vColor = vec4( gcolor, gopacity );',
+'    } else {',
+'        vColor = color;',
+'    }',
+'',
 '    vUV = uv;',
 '',
 '    mat4 m = projectionMatrix * modelViewMatrix;',
@@ -376,6 +403,7 @@ function MeshLineMaterial( parameters ) {
 	this.useMap = check( parameters.useMap, 0 );
 	this.alphaMap = check( parameters.alphaMap, null );
 	this.useAlphaMap = check( parameters.useAlphaMap, 0 );
+	this.useGlobalColor = check( parameters.useGlobalColor, 1 );
 	this.color = check( parameters.color, new THREE.Color( 0xffffff ) );
 	this.opacity = check( parameters.opacity, 1 );
 	this.resolution = check( parameters.resolution, new THREE.Vector2( 1, 1 ) );
@@ -397,8 +425,9 @@ function MeshLineMaterial( parameters ) {
 			useMap: { type: 'f', value: this.useMap },
 			alphaMap: { type: 't', value: this.alphaMap },
 			useAlphaMap: { type: 'f', value: this.useAlphaMap },
-			color: { type: 'c', value: this.color },
-			opacity: { type: 'f', value: this.opacity },
+			useGlobalColor: {type: 'f', value: this.useGlobalColor },
+			gcolor: { type: 'c', value: this.color },
+			gopacity: { type: 'f', value: this.opacity },
 			resolution: { type: 'v2', value: this.resolution },
 			sizeAttenuation: { type: 'f', value: this.sizeAttenuation },
 			near: { type: 'f', value: this.near },
@@ -420,6 +449,7 @@ function MeshLineMaterial( parameters ) {
 	delete parameters.useMap;
 	delete parameters.alphaMap;
 	delete parameters.useAlphaMap;
+	delete parameters.useGlobalColor;
 	delete parameters.color;
 	delete parameters.opacity;
 	delete parameters.resolution;
@@ -453,6 +483,7 @@ MeshLineMaterial.prototype.copy = function ( source ) {
 	this.useMap = source.useMap;
 	this.alphaMap = source.alphaMap;
 	this.useAlphaMap = source.useAlphaMap;
+	this.useGlobalColor = check( parameters.useGlobalColor, 1);
 	this.color.copy( source.color );
 	this.opacity = source.opacity;
 	this.resolution.copy( source.resolution );
