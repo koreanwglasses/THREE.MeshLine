@@ -1,5 +1,7 @@
 declare module 'three.meshline' {
     export class MeshLine {
+        public readonly geometry : THREE.BufferGeometry;
+
         constructor();
         /**
          * Set the geometry to the specified geometry. This also accepts a
@@ -12,7 +14,7 @@ declare module 'three.meshline' {
         setGeometry(g: THREE.Geometry | THREE.BufferGeometry | Float32Array | Array<number>, c? : Function): void;
     }
 
-    export class MeshLineMaterial {
+    export class MeshLineMaterial extends THREE.Material {
         constructor(OPTIONS?: {map?: THREE.Texture, useMap?: number,
             alphaMap?: THREE.Texture, useAlphaMap?: number,
             repeat?: THREE.Vector2, useGlobalColor?: number, color?: THREE.Color, opacity?: number,
