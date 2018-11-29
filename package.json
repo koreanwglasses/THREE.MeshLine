@@ -20,7 +20,7 @@
     "LICENSE",
     "History.md",
     "README.md",
-    "src/three.meshline.d.ts",
+    "src/THREE.MeshLine.d.ts",
     "src/THREE.MeshLine.js"
   ],
   "author": "Jaume Sanchez <the.spite@gmail.com> (https://www.clicktorelease.com)",
